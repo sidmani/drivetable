@@ -1,0 +1,25 @@
+{
+  "name": "drivetable",
+  "version": "0.0.1",
+  "description": "A database built on Google Drive folders",
+  "main": "src/index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "database",
+    "Google",
+    "Drive"
+  ],
+  "author": "Sid Mani",
+  "license": "MIT",
+  "devDependencies": {
+    "eslint": "^4.19.1",
+    "eslint-config-airbnb-base": "^13.0.0",
+    "eslint-plugin-import": "^2.13.0"
+  },
+  "dependencies": {
+    "fetch-ponyfill": "^6.0.2",
+    "querystringify": "^2.0.0"
+  }
+}
