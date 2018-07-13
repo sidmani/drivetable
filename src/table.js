@@ -9,8 +9,7 @@ function Table(name, idKey, root, drive) {
 Table.prototype.open = function () {
   if (this.id) return Promise.resolve(this.id);
   // check if folder by name exists as subdirectory of root
-  const req = this.drive.list(`name = '${this.name}' and '${this.root}' in parents and mimeType = 'application/vnd.google-apps.folder'`);
-
+  const req = this.drive.list(`name = '${this.name}' and mimeType = 'application/vnd.google-apps.folder' and '${this.root}' in parents`, 'files/id');
   return this.drive.request(req)
     .then((res) => {
       // if no such folder exists, create it
@@ -44,16 +43,23 @@ Table.prototype.put = function (object) {
       }
 
       // file drive id isn't cached, so query for it
-      const req = this.rawQuery(`properties has { ${this.idKey} = '${id}`, 'id');
+      const req = this.rawQuery(`properties has { key='${this.idKey}' and value='${id}' }`, 'files/id');
       return this.drive.request(req)
-        .then(files => (files[0] ? files[0].id : undefined));
+        .then((files) => {
+          if (!files || !files[0]) return undefined;
+          return files[0].id;
+        });
     })
     .then((driveId) => {
       let req;
       if (driveId) {
         req = this.drive.update(driveId, { properties: object });
       } else {
-        req = this.drive.create({ properties: object });
+        req = this.drive.create({
+          properties: object,
+          parents: [this.id],
+          name: id,
+        });
       }
       return this.drive.request(req);
     })
@@ -72,7 +78,7 @@ Table.prototype.get = function (id) {
       }
 
       // otherwise, query for it and cache the id
-      const req = this.rawQuery(`properties has { ${this.idKey} = '${id}' }`, 'properties,id');
+      const req = this.rawQuery(`properties has { key='${this.idKey}' and value='${id}' }`, 'files(properties,id)');
       return this.drive.request(req)
         .then(files => files[0]);
     })
@@ -93,6 +99,8 @@ Table.prototype.query = function (match) {
     .then(files => files.map(f => f.properties));
 };
 
-Table.prototype.rawQuery = function (q, fields = 'properties') {
-  return this.drive.list(`(${this.id} in parents)${q ? `and (${q})` : ''}`, fields);
+Table.prototype.rawQuery = function (q, fields = 'files(properties,id)') {
+  return this.drive.list(`('${this.id}' in parents)${q ? ` and (${q})` : ''}`, fields);
 };
+
+module.exports = Table;

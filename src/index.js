@@ -23,3 +23,5 @@ DriveTable.prototype.table = function(name, idKey = 'id') {
 DriveTable.prototype.open = function() {
   return Promise.all(Object.values(this.tables).forEach(t => t.open()));
 };
+
+module.exports = DriveTable;

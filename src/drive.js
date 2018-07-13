@@ -8,12 +8,20 @@ function Drive(token) {
 }
 
 Drive.prototype.request = function (req) {
-  const url = `${req.endpoint}?${qs.stringify(req.query)}`;
+  let url = req.endpoint;
+  if (req.query) {
+    url += `?${qs.stringify(req.query)}`;
+  }
 
   return fetch(url, {
     method: req.method,
     headers: new Headers(Object.assign({ Authorization: `Bearer ${this.token}` }, req.headers)),
     body: req.body,
+  }).then((res) => {
+    if (res.status !== 200) {
+      throw new Error(`Request error: ${res.status} ${res.statusText}`);
+    }
+    return res;
   }).then(req.handler);
 };
 
@@ -25,11 +33,15 @@ Drive.prototype.createFolder = function (name, parent) {
   return {
     endpoint,
     body: JSON.stringify({
-      mimeType: 'application/vnd.google-apps.folder',
       name,
-      parent: [parent],
+      parents: [parent],
+      mimeType: 'application/vnd.google-apps.folder',
     }),
     method: 'POST',
+    headers: {
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+    },
     handler: res => res.json().then(json => json.id),
   };
 };
@@ -39,6 +51,10 @@ Drive.prototype.create = function (meta) {
     endpoint,
     body: JSON.stringify(meta),
     method: 'POST',
+    headers: {
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+    },
     handler: res => res.json().then(json => json.id),
   };
 };
@@ -52,10 +68,16 @@ Drive.prototype.get = function (id, fields) {
   };
 };
 
-Drive.prototype.list = function (q, fields, spaces = ['appDataFolder']) {
+Drive.prototype.list = function (q, fields, spaces = ['drive']) {
+  const query = { q, spaces: spaces.join(',') };
+
+  if (fields) {
+    query.fields = fields;
+  }
+
   return {
     endpoint,
-    query: { spaces: spaces.join(','), q, fields },
+    query,
     method: 'GET',
     handler: res => res.json().then(json => json.files),
   };
@@ -66,6 +88,10 @@ Drive.prototype.update = function (id, meta) {
     endpoint: `${endpoint}/${id}`,
     body: JSON.stringify(meta),
     method: 'PATCH',
+    headers: {
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+    },
     handler: () => id,
   };
 };
