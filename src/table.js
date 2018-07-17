@@ -28,6 +28,22 @@ Table.prototype.open = function () {
     });
 };
 
+Table.prototype.getDriveId = function (objectId) {
+  if (this.driveIds[objectId]) {
+    return Promise.resolve(this.driveIds[objectId]);
+  }
+
+  const req = this.rawQuery(`properties has { key='${this.idKey}' and value='${objectId}' }`, 'files/id');
+  return this.drive.request(req)
+    .then((files) => {
+      if (files[0]) {
+        this.driveIds[objectId] = files[0].id;
+        return files[0].id;
+      }
+      return undefined;
+    });
+};
+
 // create or update an object
 Table.prototype.put = function (object) {
   const id = object[this.idKey];
@@ -36,20 +52,7 @@ Table.prototype.put = function (object) {
   }
 
   return this.open()
-    .then(() => {
-      // if this.driveIds[id] exists, return it
-      if (this.driveIds[id]) {
-        return this.driveIds[id];
-      }
-
-      // file drive id isn't cached, so query for it
-      const req = this.rawQuery(`properties has { key='${this.idKey}' and value='${id}' }`, 'files/id');
-      return this.drive.request(req)
-        .then((files) => {
-          if (!files || !files[0]) return undefined;
-          return files[0].id;
-        });
-    })
+    .then(() => this.getDriveId(id))
     .then((driveId) => {
       let req;
       if (driveId) {
@@ -91,9 +94,22 @@ Table.prototype.get = function (id) {
     });
 };
 
+Table.prototype.delete = function (id) {
+  return this.open()
+    .then(() => this.getDriveId(id))
+    .then(driveId => this.drive.request(this.drive.delete(driveId)))
+    .then(() => {
+      this.driveIds[id] = undefined;
+    });
+};
+
+Table.prototype.batchPut = function(objects) {
+
+};
+
 // TODO: cache ids from query results
 Table.prototype.query = function (match) {
-  const clause = `properties has { ${Object.keys(match).forEach(key => `${key} = '${match[key]}'`).join(' and ')} }`;
+  const clause = `properties ${Object.keys(match).forEach(key => `has { key='${key}' and value='${match[key]}' }`).join(' and ')} }`;
   const req = this.rawQuery(clause);
   return this.drive.request(req)
     .then(files => files.map(f => f.properties));

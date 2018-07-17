@@ -20,6 +20,7 @@
   },
   "dependencies": {
     "fetch-ponyfill": "^6.0.2",
+    "hypermessage": "0.0.2",
     "querystringify": "^2.0.0"
   }
 }

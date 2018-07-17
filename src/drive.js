@@ -1,5 +1,6 @@
 const { fetch, Headers } = require('fetch-ponyfill')();
 const qs = require('querystringify');
+const hm = require('hypermessage');
 
 const endpoint = 'https://www.googleapis.com/drive/v3/files';
 
@@ -18,15 +19,42 @@ Drive.prototype.request = function (req) {
     headers: new Headers(Object.assign({ Authorization: `Bearer ${this.token}` }, req.headers)),
     body: req.body,
   }).then((res) => {
-    if (res.status !== 200) {
+    if (res.status >= 300 || res.status < 200) {
       throw new Error(`Request error: ${res.status} ${res.statusText}`);
     }
-    return res;
+    return res.text();
   }).then(req.handler);
 };
 
 Drive.prototype.batch = function (reqs) {
+  // build the request body from individual requests
+  const body = reqs.map(hm.build).map((str) => `--END_OF_PART
+Content-Length: ${Buffer.byteLength(str, 'utf8')}
+Content-Type: application/http
+content-transfer-encoding: binary
 
+${str}
+`).join('') + '--END_OF_PART--';
+
+  const headers = {
+    'Content-Type': 'multipart/mixed; boundary=END_OF_PART',
+  };
+
+  const req = {
+    body,
+    headers,
+    method: 'POST',
+    endpoint: 'https://www.googleapis.com/batch',
+  };
+
+  return this.request(req)
+    // split the body by into individual responses
+    .then(text => text.split(/^--[^\n]+(?:--)?/gm).slice(1, -1))
+    // execute the handler on each response body and return it
+    .then(responses => responses.map((res, idx) => {
+      const resBody = /\n\r\n[\W\w]*?\n\r\n([\W\w]*?)$/.exec(res)[1];
+      return reqs[idx].handler(resBody);
+    }));
 };
 
 Drive.prototype.createFolder = function (name, parent) {
@@ -42,7 +70,7 @@ Drive.prototype.createFolder = function (name, parent) {
       Accept: 'application/json',
       'Content-Type': 'application/json',
     },
-    handler: res => res.json().then(json => json.id),
+    handler: text => JSON.parse(text).id,
   };
 };
 
@@ -55,7 +83,7 @@ Drive.prototype.create = function (meta) {
       Accept: 'application/json',
       'Content-Type': 'application/json',
     },
-    handler: res => res.json().then(json => json.id),
+    handler: text => JSON.parse(text).id,
   };
 };
 
@@ -64,7 +92,7 @@ Drive.prototype.get = function (id, fields) {
     endpoint: `${endpoint}/${id}`,
     query: { fields },
     method: 'GET',
-    handler: res => res.json(),
+    handler: text => JSON.parse(text),
   };
 };
 
@@ -79,7 +107,7 @@ Drive.prototype.list = function (q, fields, spaces = ['drive']) {
     endpoint,
     query,
     method: 'GET',
-    handler: res => res.json().then(json => json.files),
+    handler: text => JSON.parse(text).files,
   };
 };
 
@@ -100,6 +128,7 @@ Drive.prototype.delete = function (id) {
   return {
     endpoint: `${endpoint}/${id}`,
     method: 'DELETE',
+    handler: () => id,
   };
 };
 

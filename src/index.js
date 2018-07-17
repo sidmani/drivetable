@@ -10,7 +10,7 @@ function DriveTable(token, root) {
   this.tables = {};
 }
 
-DriveTable.prototype.table = function(name, idKey = 'id') {
+DriveTable.prototype.table = function (name, idKey = 'id') {
   if (this.tables[name]) {
     throw new Error(`Table of name ${name} already exists!`);
   }
@@ -20,7 +20,7 @@ DriveTable.prototype.table = function(name, idKey = 'id') {
   return t;
 };
 
-DriveTable.prototype.open = function() {
+DriveTable.prototype.open = function () {
   return Promise.all(Object.values(this.tables).forEach(t => t.open()));
 };
 
