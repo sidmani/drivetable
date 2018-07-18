@@ -28,33 +28,34 @@ Drive.prototype.request = function (req) {
 
 Drive.prototype.batch = function (reqs) {
   // build the request body from individual requests
-  const body = reqs.map(hm.build).map((str) => `--END_OF_PART
-Content-Length: ${Buffer.byteLength(str, 'utf8')}
-Content-Type: application/http
-content-transfer-encoding: binary
 
-${str}
-`).join('') + '--END_OF_PART--';
+  const options = {
+    headers: {
+      'Content-Type': 'application/http',
+      'content-transfer-encoding': 'binary',
+    },
+    autoContentLength: true,
+  };
+
+  const body = hm.buildMultipart(reqs.map(hm.build), 'END_OF_PART', options);
 
   const headers = {
     'Content-Type': 'multipart/mixed; boundary=END_OF_PART',
   };
 
-  const req = {
+  return {
     body,
     headers,
     method: 'POST',
     endpoint: 'https://www.googleapis.com/batch',
+    handler: (text) => {
+      const responses = hm.parseMultipart(text);
+      return responses.map((res, idx) => {
+        const resBody = hm.parse(res).body;
+        return reqs[idx].handler(resBody);
+      });
+    },
   };
-
-  return this.request(req)
-    // split the body by into individual responses
-    .then(text => text.split(/^--[^\n]+(?:--)?/gm).slice(1, -1))
-    // execute the handler on each response body and return it
-    .then(responses => responses.map((res, idx) => {
-      const resBody = /\n\r\n[\W\w]*?\n\r\n([\W\w]*?)$/.exec(res)[1];
-      return reqs[idx].handler(resBody);
-    }));
 };
 
 Drive.prototype.createFolder = function (name, parent) {
