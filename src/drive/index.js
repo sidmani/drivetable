@@ -2,25 +2,10 @@ const endpoint = 'https://www.googleapis.com/drive/v3/files';
 
 function Drive(token) {
   this.token = token;
-  this.batchContext = [];
 }
 
 Object.assign(Drive.prototype, require('./request'));
 
-Drive.prototype.batchMap = function (then) {
-  return (o, index, arr) => Promise.resolve(o)
-    .finally(() => {
-      if (index === 0) {
-        this.openBatch();
-      }
-    })
-    .then(result => then(result, index))
-    .finally(() => {
-      if (index === arr.length - 1) {
-        this.closeBatch();
-      }
-    });
-};
 
 Drive.prototype.create = function (meta) {
   return this.request({

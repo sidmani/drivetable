@@ -36,11 +36,6 @@ function executeRequest(request, token) {
   });
 }
 
-// begin collecting requests for batching
-module.exports.openBatch = function () {
-  this.batchContext = this.batchContext || [];
-};
-
 // execute the batch request
 module.exports.closeBatch = function () {
   if (!this.batchContext) {
@@ -59,16 +54,27 @@ module.exports.closeBatch = function () {
 
   const batchRequest = batch(batchContext.map(o => o.request));
   return executeRequest(batchRequest, this.token)
-    .then((text) => {
-      hm.parseMultipart(text)
-        .map(res => hm.parse(res))
-        .forEach((res, idx) => {
-          if (res.status >= 300 || res.status < 200) {
-            batchContext[idx].reject(new Error(`Request error: ${res.status} ${res.statusText}`));
-          } else {
-            batchContext[idx].resolve(res.body);
-          }
-        })
+    .then(text => hm.parseMultipart(text)
+      .forEach((r, idx) => {
+        const res = hm.parse(r);
+        if (res.status >= 300 || res.status < 200) {
+          batchContext[idx].reject(new Error(`Request error: ${res.status} ${res.statusText}`));
+        } else {
+          batchContext[idx].resolve(res.body);
+        }
+      }));
+}
+
+module.exports.batchMap = function (then) {
+  return (o, index, arr) => Promise.resolve(o)
+    .finally(() => {
+      this.batchContext = this.batchContext || [];
+    })
+    .then(result => then(result, index))
+    .finally(() => {
+      if (index === arr.length - 1) {
+        this.closeBatch();
+      }
     });
 };
 
